@@ -58,6 +58,7 @@ export async function handleMessageCreate(message) {
   
 
   if (!settings) return;
+  if (await isUserBannedForTranslate(message.guildId, message.member)) return;
 
 
   const input = await applyTextReplacements(message.guildId, message.content);
@@ -177,15 +178,15 @@ export async function handleMessageCreate(message) {
     // Handle Auto-Erase
     if (settings.features?.autoEraseEnabled) {
       const mode = settings.autoEraseMode || "ONLY_FROM_ORIGINAL";
-      logger.info("Attempting auto-erase", { mode, messageId: message.id });
+      logger.debug("Attempting auto-erase", { mode, messageId: message.id });
       try {
         if (mode === "ONLY_FROM_ORIGINAL") {
           await message.delete()
-            .then(() => logger.info("Message deleted successfully", { messageId: message.id }))
+            .then(() => logger.debug("Message deleted successfully", { messageId: message.id }))
             .catch((e) => logger.warn("Message delete failed", { error: e.message }));
         } else if (mode === "ALL") {
           await message.delete()
-            .then(() => logger.info("Message deleted successfully", { messageId: message.id }))
+            .then(() => logger.debug("Message deleted successfully", { messageId: message.id }))
             .catch((e) => logger.warn("Message delete failed", { error: e.message }));
         }
       } catch (err) {

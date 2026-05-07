@@ -1,0 +1,41 @@
+{
+  "name": "discord-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-oriented Discord bot (discord.js)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "start:api": "node server/index.js",
+    "dev": "node --watch src/index.js",
+    "dev:api": "node --watch server/index.js",
+    "dev:dashboard": "npm run dev --prefix dashboard",
+    "deploy-commands": "node scripts/deploy-commands.js",
+    "lint": "eslint src scripts server",
+    "test": "node --test \"server/tests/**/*.test.js\""
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.5.0",
+    "google-translate-api-x": "^10.7.2",
+    "google-tts-api": "^2.0.2",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5",
+    "node-cache": "^5.1.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "eslint": "^9.15.0",
+    "globals": "^15.14.0",
+    "supertest": "^7.2.2"
+  }
+}

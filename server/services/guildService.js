@@ -145,11 +145,11 @@ export async function getGuildOverview(cfg, user, guildId) {
       id: guildId,
       name: snapshot.guildName || managed.name,
       iconUrl: guildIconUrl(guildId, snapshot.icon || managed.icon),
-      plan: settings.plan,
       botConfigured: Boolean(
         await GuildInstallation.findOne({ guildId }).select("_id").lean(),
       ),
     },
+    settings: settings.toObject(),
     counts: {
       members: snapshot.memberCount,
       channels: snapshot.channelCount,

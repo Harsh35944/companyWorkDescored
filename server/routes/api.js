@@ -6,6 +6,7 @@ import { ensureFreshAccessToken } from "../lib/userTokens.js";
 import { fetchDiscordUser } from "../lib/discordApi.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { validate } from "../middleware/validate.js";
+import { logger } from "../lib/logger.js";
 import {
   analyticsQuerySchema,
   autoTranslateConfigCreateSchema,
@@ -20,6 +21,8 @@ import {
   statsBodySchema,
   textReplacementCreateSchema,
   translateBanPatchSchema,
+  userTranslateConfigCreateSchema,
+  userTranslateConfigPatchSchema,
 } from "../validation/schemas.js";
 import {
   getGuildAnalytics,
@@ -29,6 +32,7 @@ import {
   getGuildUserStats,
   getManageableGuilds,
   writeGuildStats,
+  ensureGuildSettings,
 } from "../services/guildService.js";
 import { createBotInviteUrl } from "../services/authService.js";
 import { AppError } from "../lib/errors.js";
@@ -39,6 +43,7 @@ import { RoleTranslateConfig } from "../models/RoleTranslateConfig.js";
 import { FlagReactionConfig } from "../models/FlagReactionConfig.js";
 import { TextReplacement } from "../models/TextReplacement.js";
 import { TranslateBan } from "../models/TranslateBan.js";
+import { UserTranslateConfig } from "../models/UserTranslateConfig.js";
 
 /**
  * Middleware to fetch the user document once per request.
@@ -87,6 +92,41 @@ export function createApiRouter(cfg) {
       const data = await getGuildOverview(cfg, req.user, guildId);
       if (!data) return res.status(403).json({ error: "Cannot access this guild" });
       res.json(data);
+    }),
+  );
+
+  r.get(
+    "/guilds/:guildId/features",
+    validate({ params: guildIdParamSchema }),
+    asyncHandler(async (req, res) => {
+      await loadManagedGuildForUser(req.user, req.params.guildId, cfg);
+      const settings = await ensureGuildSettings(req.params.guildId, req.user.discordId);
+      logger.info("GET /features returned settings from DB", { guildId: req.params.guildId, features: settings.features });
+      res.json({ settings });
+    }),
+  );
+
+  r.patch(
+    "/guilds/:guildId/features",
+    validate({ params: guildIdParamSchema, body: guildFeaturesPatchSchema }),
+    asyncHandler(async (req, res) => {
+      await loadManagedGuildForUser(req.user, req.params.guildId, cfg);
+      const { features, ...rest } = req.body;
+      const update = { $set: { ...rest } };
+      if (features) {
+        for (const [key, val] of Object.entries(features)) {
+          update.$set[`features.${key}`] = val;
+        }
+      }
+      
+      const settings = await GuildSettings.findOneAndUpdate(
+        { guildId: req.params.guildId },
+        update,
+        { new: true, upsert: true },
+      );
+
+      logger.info("Guild features updated in DB", { guildId: req.params.guildId, features: settings.features });
+      res.json({ settings });
     }),
   );
 
@@ -213,10 +253,11 @@ export function createApiRouter(cfg) {
     asyncHandler(async (req, res) => {
       const managed = await loadManagedGuildForUser(req.user, req.params.guildId, cfg);
       if (!managed) return res.status(403).json({ error: "Cannot access this guild" });
-      const item = await AutoTranslateConfig.create({
-        guildId: req.params.guildId,
-        ...req.body,
-      });
+      const item = await AutoTranslateConfig.findOneAndUpdate(
+        { guildId: req.params.guildId, name: req.body.name },
+        { $set: req.body },
+        { upsert: true, new: true },
+      );
       res.status(201).json({ item });
     }),
   );
@@ -269,10 +310,11 @@ export function createApiRouter(cfg) {
     asyncHandler(async (req, res) => {
       const managed = await loadManagedGuildForUser(req.user, req.params.guildId, cfg);
       if (!managed) return res.status(403).json({ error: "Cannot access this guild" });
-      const item = await RoleTranslateConfig.create({
-        guildId: req.params.guildId,
-        ...req.body,
-      });
+      const item = await RoleTranslateConfig.findOneAndUpdate(
+        { guildId: req.params.guildId, roleId: req.body.roleId },
+        { $set: req.body },
+        { upsert: true, new: true },
+      );
       res.status(201).json({ item });
     }),
   );
@@ -397,6 +439,47 @@ export function createApiRouter(cfg) {
         { upsert: true, new: true },
       );
       res.json({ item });
+    }),
+  );
+
+  r.get(
+    "/guilds/:guildId/user-translate-configs",
+    validate({ params: guildIdParamSchema }),
+    asyncHandler(async (req, res) => {
+      const managed = await loadManagedGuildForUser(req.user, req.params.guildId, cfg);
+      if (!managed) return res.status(403).json({ error: "Cannot access this guild" });
+      const items = await UserTranslateConfig.find({ guildId: req.params.guildId }).lean();
+      res.json({ items });
+    }),
+  );
+
+  r.post(
+    "/guilds/:guildId/user-translate-configs",
+    validate({ params: guildIdParamSchema, body: userTranslateConfigCreateSchema }),
+    asyncHandler(async (req, res) => {
+      const managed = await loadManagedGuildForUser(req.user, req.params.guildId, cfg);
+      if (!managed) return res.status(403).json({ error: "Cannot access this guild" });
+      const item = await UserTranslateConfig.findOneAndUpdate(
+        { guildId: req.params.guildId, userId: req.body.userId },
+        { $set: req.body },
+        { upsert: true, new: true },
+      );
+      res.status(201).json({ item });
+    }),
+  );
+
+  r.delete(
+    "/guilds/:guildId/user-translate-configs/:id",
+    validate({ params: guildIdAndIdParamSchema }),
+    asyncHandler(async (req, res) => {
+      const managed = await loadManagedGuildForUser(req.user, req.params.guildId, cfg);
+      if (!managed) return res.status(403).json({ error: "Cannot access this guild" });
+      const item = await UserTranslateConfig.findOneAndDelete({
+        _id: req.params.id,
+        guildId: req.params.guildId,
+      });
+      if (!item) return res.status(404).json({ error: "Not found" });
+      res.status(204).end();
     }),
   );
 

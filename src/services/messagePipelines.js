@@ -8,11 +8,13 @@ import {
   getFlagConfig,
   getGuildSettings,
   getRoleConfigs,
+  getUserConfigs,
   incrementUsage,
   isUserBannedForTranslate,
   saveTranslationMap,
   translateText,
 } from "./translationCore.js";
+import { generateTTSUrl } from "./ttsService.js";
 
 const FLAG_TO_LANG = {
   us: "en",
@@ -54,6 +56,22 @@ export async function handleMessageCreate(message) {
   if (message.author.bot || !message.guildId || !message.content?.trim()) return;
 
   const settings = await getGuildSettings(message.guildId);
+  if (!settings) return;
+
+  const userTranslateEnabled = Boolean(settings?.features?.userTranslateEnabled);
+  const ttsEnabled = Boolean(settings?.features?.ttsEnabled);
+
+  const autoEraseEnabled = Boolean(settings?.features?.autoEraseEnabled);
+  const autoEraseMode = settings?.autoEraseMode || "ONLY_FROM_TRANSLATED";
+  const eraseDelay = 30000; // 30 seconds
+
+  async function scheduleDeletion(msg) {
+    if (!msg?.delete) return;
+    setTimeout(() => {
+      msg.delete().catch(() => {});
+    }, eraseDelay);
+  }
+
   const perms = message.channel.permissionsFor(message.guild.members.me);
   
 
@@ -77,16 +95,19 @@ export async function handleMessageCreate(message) {
 
           const style = cfg.style || settings.defaultStyle || "TEXT";
           const components = [];
-          if (settings.features?.ttsEnabled) {
-            components.push(
-              new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                  .setCustomId(`tts:${target.targetLanguage}`)
-                  .setLabel("Listen")
-                  .setEmoji("🔊")
-                  .setStyle(ButtonStyle.Secondary),
-              ),
-            );
+          if (ttsEnabled) {
+            const ttsUrl = await generateTTSUrl(out.translatedText, target.targetLanguage);
+            if (ttsUrl) {
+              components.push(
+                new ActionRowBuilder().addComponents(
+                  new ButtonBuilder()
+                    .setLabel("Listen")
+                    .setEmoji("🔊")
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(ttsUrl),
+                ),
+              );
+            }
           }
 
           let sent;
@@ -119,6 +140,12 @@ export async function handleMessageCreate(message) {
               components,
             });
           }
+
+          if (autoEraseEnabled) {
+            if (autoEraseMode === "ONLY_FROM_TRANSLATED" || autoEraseMode === "BOTH") scheduleDeletion(sent);
+            if (autoEraseMode === "ONLY_FROM_ORIGINAL" || autoEraseMode === "BOTH") scheduleDeletion(message);
+          }
+
           return { id: sent.id, chars: out.translatedText.length };
         });
       }
@@ -131,9 +158,82 @@ export async function handleMessageCreate(message) {
     for (const cfg of roleConfigs) {
       translationTasks.push(async () => {
         const out = await translateText(input, null, cfg.targetLanguage);
+        
+        let components = [];
+        if (ttsEnabled) {
+          const ttsUrl = await generateTTSUrl(out.translatedText, cfg.targetLanguage);
+          if (ttsUrl) {
+            components = [
+              new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setLabel("Listen")
+                  .setStyle(ButtonStyle.Link)
+                  .setURL(ttsUrl)
+              )
+            ];
+          }
+        }
+
         const sent = await message.reply({
           content: out.translatedText,
           allowedMentions: { repliedUser: false },
+          components,
+        });
+
+        if (autoEraseEnabled) {
+          if (autoEraseMode === "ONLY_FROM_TRANSLATED" || autoEraseMode === "ALL") scheduleDeletion(sent);
+          if (autoEraseMode === "ONLY_FROM_ORIGINAL" || autoEraseMode === "ALL") scheduleDeletion(message);
+        }
+        return { id: sent.id, chars: out.translatedText.length };
+      });
+    }
+  }
+
+  // 2.5 User-Translate Logic
+  logger.info("Processing message flags", { 
+    autoTranslateEnabled: Boolean(settings?.features?.autoTranslateEnabled),
+    userTranslateEnabled, 
+    ttsEnabled,
+    autoEraseEnabled,
+    autoEraseMode,
+    authorId: message.author.id, 
+    guildId: message.guildId 
+  });
+
+  if (userTranslateEnabled) {
+    const userConfigs = await getUserConfigs(message.guildId, message.author.id);
+    if (userConfigs.length > 0) {
+      logger.info("User-specific translation triggered", { 
+        userId: message.author.id, 
+        guildId: message.guildId,
+        targetLang: userConfigs[0].targetLanguage 
+      });
+    }
+    for (const cfg of userConfigs) {
+      translationTasks.push(async () => {
+        const out = await translateText(input, null, cfg.targetLanguage);
+        
+        let components = [];
+        if (ttsEnabled) {
+          logger.info("Calling generateTTSUrl", { lang: cfg.targetLanguage, text: out.translatedText.substring(0, 20) });
+          const ttsUrl = await generateTTSUrl(out.translatedText, cfg.targetLanguage);
+          if (ttsUrl) {
+            logger.info("TTS success", { url: ttsUrl });
+            components = [
+              new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                  .setLabel("Listen")
+                  .setStyle(ButtonStyle.Link)
+                  .setURL(ttsUrl)
+              )
+            ];
+          }
+        }
+
+        const sent = await message.reply({
+          content: out.translatedText,
+          allowedMentions: { repliedUser: false },
+          components,
         });
         return { id: sent.id, chars: out.translatedText.length };
       });
@@ -213,9 +313,26 @@ export async function handleFlagReaction(reaction, user) {
   if (!language) return;
 
   const out = await translateText(message.content, null, language);
+  
+  let components = [];
+  if (settings.features?.ttsEnabled) {
+    const ttsUrl = await generateTTSUrl(out.translatedText, language);
+    if (ttsUrl) {
+      components = [
+        new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel("Listen")
+            .setStyle(ButtonStyle.Link)
+            .setURL(ttsUrl)
+        )
+      ];
+    }
+  }
+
   const sent = await message.reply({
     content: out.translatedText,
     allowedMentions: { repliedUser: false },
+    components,
   });
   
   await Promise.all([

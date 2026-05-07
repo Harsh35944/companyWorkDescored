@@ -225,6 +225,93 @@ function AutoTranslateSection({ guildId, items, channels, onReload, setError }) 
   );
 }
 
+function UserTranslateSection({ guildId, items, users, onReload, setError }) {
+  const [userId, setUserId] = useState("");
+  const [lang, setLang] = useState("gu");
+  const [busy, setBusy] = useState(false);
+
+  async function add() {
+    if (!userId || !lang) return;
+    setBusy(true);
+    try {
+      await fetchJson(`/api/guilds/${guildId}/user-translate-configs`, {
+        method: "POST",
+        body: JSON.stringify({ userId, targetLanguage: lang }),
+      });
+      setUserId("");
+      onReload();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id) {
+    try {
+      await fetchJson(`/api/guilds/${guildId}/user-translate-configs/${id}`, {
+        method: "DELETE",
+      });
+      onReload();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  return (
+    <div className="config-section">
+      <h3>User Translate Configs</h3>
+      <div className="card" style={{ marginTop: 8 }}>
+        <div className="form-group">
+          <label>Select User (Active Users)</label>
+          <select value={userId} onChange={e => setUserId(e.target.value)} style={{ marginBottom: 12 }}>
+            <option value="">-- Choose User --</option>
+            {users.map(u => (
+              <option key={u.userId} value={u.userId}>{u.username} ({u.userId})</option>
+            ))}
+          </select>
+
+          <label>Or Enter User ID</label>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <input
+              style={{ flex: 1 }}
+              value={userId}
+              onChange={e => setUserId(e.target.value)}
+              placeholder="e.g. 1497126742756950086"
+            />
+          </div>
+
+          <label>Target Language</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <select value={lang} onChange={e => setLang(e.target.value)} style={{ flex: 1 }}>
+              {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+            </select>
+            <button className="btn primary" onClick={add} disabled={busy}>Add User Config</button>
+          </div>
+          <p className="muted small" style={{ marginTop: 12 }}>
+            Note: The dropdown only shows users who have recently had messages translated. Use "Enter User ID" for anyone else.
+          </p>
+        </div>
+        <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--border-color)" }}>
+          {items.length === 0 ? (
+            <p className="muted small">No user translation rules added yet.</p>
+          ) : (
+            items.map(item => {
+              const uName = users.find(u => u.userId === item.userId)?.username || item.userId;
+              return (
+                <div key={item._id} className="config-item">
+                  <span>User <b>{uName}</b> → <code>{item.targetLanguage}</code></span>
+                  <button className="btn danger sm" onClick={() => remove(item._id)}>Delete</button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RoleTranslateSection({ guildId, items, roles, onReload, setError }) {
   const [roleId, setRoleId] = useState("");
   const [lang, setLang] = useState("gu");
@@ -511,6 +598,7 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
   const [flagConfig, setFlagConfig] = useState(null);
   const [replacements, setReplacements] = useState([]);
   const [banList, setBanList] = useState({ userIds: [], roleIds: [] });
+  const [userConfigs, setUserConfigs] = useState([]);
   const [userStats, setUserStats] = useState([]);
   const [channels, setChannels] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -519,7 +607,7 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
     setLoading(true);
     setError(null);
     try {
-      const [ov, an, fs, ac, rc, fc, tr, bl, us, ch, rl] = await Promise.all([
+      const [ov, an, fs, ac, rc, fc, tr, bl, uc, us, ch, rl] = await Promise.all([
         fetchJson(`/api/guilds/${guildId}/overview`),
         fetchJson(
           `/api/guilds/${guildId}/analytics?period=${period}&metric=${metric}`,
@@ -530,27 +618,29 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
         fetchJson(`/api/guilds/${guildId}/flag-reaction-config`),
         fetchJson(`/api/guilds/${guildId}/text-replacements`),
         fetchJson(`/api/guilds/${guildId}/translate-ban`),
+        fetchJson(`/api/guilds/${guildId}/user-translate-configs`),
         fetchJson(`/api/guilds/${guildId}/user-stats`),
         fetchJson(`/api/guilds/${guildId}/channels`),
         fetchJson(`/api/guilds/${guildId}/roles`),
       ]);
       setOverview(ov);
       setAnalytics(an);
-      setFeatureSettings(
-        fs?.settings?.features || {
-          translationByFlagEnabled: false,
-          autoTranslateEnabled: false,
-          roleTranslateEnabled: false,
-          autoEraseEnabled: false,
-          autoReactEnabled: false,
-          ttsEnabled: false,
-        },
-      );
+      setFeatureSettings({
+        translationByFlagEnabled: false,
+        autoTranslateEnabled: false,
+        roleTranslateEnabled: false,
+        autoEraseEnabled: false,
+        autoReactEnabled: false,
+        ttsEnabled: false,
+        userTranslateEnabled: false,
+        ...(fs?.settings?.features || {})
+      });
       setAutoConfigs(ac?.items || []);
       setRoleConfigs(rc?.items || []);
       setFlagConfig(fc?.item || { enabled: false, style: "TEXT" });
       setReplacements(tr?.items || []);
       setBanList(bl?.item || { userIds: [], roleIds: [] });
+      setUserConfigs(uc?.items || []);
       setUserStats(us?.users || []);
       setChannels(ch?.channels || []);
       setRoles(rl?.roles || []);
@@ -683,26 +773,34 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
           <section className="card">
             <h3>Feature Toggles</h3>
             <p className="muted small">Enable or disable translation features for this server.</p>
-            <div className="grid" style={{ marginTop: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginTop: 16 }}>
               {[
                 ["autoTranslateEnabled", "Automatic Translation"],
                 ["roleTranslateEnabled", "Role Translation"],
+                ["userTranslateEnabled", "User Translation"],
                 ["translationByFlagEnabled", "Translation by Flag"],
                 ["autoReactEnabled", "Auto-React (Flags)"],
                 ["autoEraseEnabled", "Auto-Erase"],
                 ["ttsEnabled", "Text-to-Speech (Audio)"],
               ].map(([key, label]) => (
-                <label key={key} className="card" style={{ padding: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <span>{label}</span>
+                <div 
+                  key={key} 
+                  className="switch-container"
+                  onClick={() => toggleFeature(key, !featureSettings[key])}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <b>{label}</b>
+                    {savingFeatureKey === key && <span className="save-badge">Saved!</span>}
+                  </div>
+                  <label className="switch" onClick={e => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={Boolean(featureSettings?.[key])}
-                      disabled={savingFeatureKey === key}
                       onChange={(e) => toggleFeature(key, e.target.checked)}
                     />
-                  </div>
-                </label>
+                    <span className="slider"></span>
+                  </label>
+                </div>
               ))}
             </div>
 
@@ -715,6 +813,7 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
                   disabled={savingFeatureKey === "autoEraseMode"}
                 >
                   <option value="ONLY_FROM_ORIGINAL">Only original message</option>
+                  <option value="ONLY_FROM_TRANSLATED">Only translated message</option>
                   <option value="ALL">All messages (original + translations)</option>
                 </select>
               </div>
@@ -745,7 +844,17 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
           </div>
 
           <div className="config-grid">
+            <UserTranslateSection
+              guildId={guildId}
+              items={userConfigs}
+              users={userStats}
+              onReload={load}
+              setError={setError}
+            />
             <FlagReactionSection guildId={guildId} config={flagConfig} onReload={load} setError={setError} />
+          </div>
+
+          <div className="config-grid">
             <TextReplacementSection guildId={guildId} items={replacements} onReload={load} setError={setError} />
           </div>
 

@@ -4,6 +4,7 @@ import { RoleTranslateConfig } from "../../server/models/RoleTranslateConfig.js"
 import { FlagReactionConfig } from "../../server/models/FlagReactionConfig.js";
 import { TextReplacement } from "../../server/models/TextReplacement.js";
 import { TranslateBan } from "../../server/models/TranslateBan.js";
+import { UserTranslateConfig } from "../../server/models/UserTranslateConfig.js";
 import { GuildStatsDaily } from "../../server/models/GuildStatsDaily.js";
 import { GuildStatsHourly } from "../../server/models/GuildStatsHourly.js";
 import { TranslationMessageMap } from "../../server/models/TranslationMessageMap.js";
@@ -225,6 +226,18 @@ export async function getRoleConfigs(guildId, member) {
   }
 
   return rows.filter((r) => roleIds.includes(r.roleId));
+}
+
+export async function getUserConfigs(guildId, userId) {
+  const cacheKey = `userConfig:${guildId}:${userId}`;
+  let config = configCache.get(cacheKey);
+
+  if (config === undefined) {
+    config = await UserTranslateConfig.findOne({ guildId, userId, enabled: true }).lean();
+    configCache.set(cacheKey, config || null);
+  }
+
+  return config ? [config] : [];
 }
 
 export async function getFlagConfig(guildId) {

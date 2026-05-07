@@ -58,8 +58,8 @@ export function createApp(cfg, deps = {}) {
     message: { error: "Too many requests, please retry shortly." },
   });
 
-  app.use("/api", csrfProtectionMiddleware(cfg), writeLimiter);
   app.use("/api/auth", createAuthRouter(cfg));
+  app.use("/api", csrfProtectionMiddleware(cfg), writeLimiter);
   app.use("/api", createApiRouter(cfg));
 
   app.get("/health", (_req, res) => {

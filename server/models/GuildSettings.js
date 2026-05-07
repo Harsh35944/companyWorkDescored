@@ -19,13 +19,14 @@ const guildSettingsSchema = new mongoose.Schema(
       translationByFlagEnabled: { type: Boolean, default: false },
       autoTranslateEnabled: { type: Boolean, default: false },
       roleTranslateEnabled: { type: Boolean, default: false },
+      userTranslateEnabled: { type: Boolean, default: false },
       autoEraseEnabled: { type: Boolean, default: false },
       autoReactEnabled: { type: Boolean, default: false },
       ttsEnabled: { type: Boolean, default: false },
     },
     autoEraseMode: {
       type: String,
-      enum: ["ALL", "ONLY_FROM_ORIGINAL"],
+      enum: ["ONLY_FROM_ORIGINAL", "ONLY_FROM_TRANSLATED", "ALL"],
       default: "ONLY_FROM_ORIGINAL",
     },
     defaultStyle: {

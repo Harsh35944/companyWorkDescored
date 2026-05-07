@@ -48,13 +48,14 @@ export const guildFeaturesPatchSchema = z
   .object({
     plan: z.enum(["free", "premium", "pro"]).optional(),
     maxCharactersPerDay: nonNegInt.optional(),
-    autoEraseMode: z.enum(["ALL", "ONLY_FROM_ORIGINAL"]).optional(),
+    autoEraseMode: z.enum(["ONLY_FROM_ORIGINAL", "ONLY_FROM_TRANSLATED", "ALL"]).optional(),
     defaultStyle: style.optional(),
     features: z
       .object({
         translationByFlagEnabled: z.boolean().optional(),
         autoTranslateEnabled: z.boolean().optional(),
         roleTranslateEnabled: z.boolean().optional(),
+        userTranslateEnabled: z.boolean().optional(),
         autoEraseEnabled: z.boolean().optional(),
         autoReactEnabled: z.boolean().optional(),
         ttsEnabled: z.boolean().optional(),
@@ -123,4 +124,17 @@ export const translateBanPatchSchema = z
     userIds: z.array(snowflake).optional(),
     roleIds: z.array(snowflake).optional(),
   })
+  .strict();
+
+export const userTranslateConfigCreateSchema = z
+  .object({
+    userId: snowflake,
+    targetLanguage: z.string().trim().min(2).max(12),
+    style: style.default("TEXT"),
+    enabled: z.boolean().default(true),
+  })
+  .strict();
+
+export const userTranslateConfigPatchSchema = userTranslateConfigCreateSchema
+  .partial()
   .strict();

@@ -49,6 +49,7 @@ export const guildFeaturesPatchSchema = z
     plan: z.enum(["free", "premium", "pro"]).optional(),
     maxCharactersPerDay: nonNegInt.optional(),
     autoEraseMode: z.enum(["ONLY_FROM_ORIGINAL", "ONLY_FROM_TRANSLATED", "ALL"]).optional(),
+    autoEraseDelay: nonNegInt.optional(),
     defaultStyle: style.optional(),
     conversationModeDelay: nonNegInt.optional(),
     features: z

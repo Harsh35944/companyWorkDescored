@@ -226,7 +226,7 @@ export async function setTranslatedMessageIds({
   await TranslationMessageMap.findOneAndUpdate(
     { guildId, featureType, originalMessageId },
     { $set: { translatedMessageIds } },
-    { new: true },
+    { upsert: true, new: true },
   ).catch(err => {
     logger.error("Failed to update translation map ids", { error: err.message, guildId, originalMessageId });
   });
@@ -337,6 +337,6 @@ export async function updateGuildSettings(guildId, updates) {
     { $set: updates },
     { new: true, upsert: true }
   );
-  configCache.del(`guildSettings:${guildId}`);
+  configCache.del(`settings:${guildId}`);
   return settings;
 }

@@ -103,7 +103,7 @@ async function processTranslation(message, inputContent, settings) {
   const ttsEnabled = Boolean(settings?.features?.ttsEnabled);
   const autoEraseEnabled = Boolean(settings?.features?.autoEraseEnabled);
   const autoEraseMode = settings?.autoEraseMode || "ONLY_FROM_ORIGINAL";
-  const eraseDelay = (settings?.settings?.autoEraseDelay || 30) * 1000;
+  const eraseDelay = (settings?.autoEraseDelay || 30) * 1000;
 
   // 1. Auto-Translate Logic
   if (settings.features?.autoTranslateEnabled) {
@@ -329,6 +329,23 @@ async function processTranslation(message, inputContent, settings) {
         translatedMessageIds: translatedIds,
       }),
     ]);
+
+    // Schedule Auto-Erase
+    if (autoEraseEnabled) {
+      setTimeout(async () => {
+        try {
+          if (autoEraseMode === "ONLY_FROM_ORIGINAL" || autoEraseMode === "ALL") {
+            await message.delete().catch(() => {});
+          } else if (autoEraseMode === "ONLY_FROM_TRANSLATED") {
+            for (const pair of translatedIds) {
+              await deleteById(message.client, pair).catch(() => {});
+            }
+          }
+        } catch (err) {
+          logger.error("Auto-Erase execution failed", { error: err.message, guildId: message.guildId });
+        }
+      }, eraseDelay);
+    }
   }
 }
 
@@ -340,13 +357,24 @@ export async function handleFlagReaction(reaction, user) {
   if (!message.guildId || !message.content?.trim()) return;
 
   const settings = await getGuildSettings(message.guildId);
-  if (!settings?.features?.translationByFlagEnabled) return;
-  const cfg = await getFlagConfig(message.guildId);
-  if (!cfg) return;
+  if (!settings?.features?.translationByFlagEnabled) {
+    logger.debug("Flag reaction skipped: feature disabled in settings", { guildId: message.guildId });
+    return;
+  }
+
+  let cfg = await getFlagConfig(message.guildId);
+  if (!cfg) {
+    // If global feature is ON, we use default config even if a specific doc doesn't exist
+    cfg = { enabled: true, style: "TEXT", sendInPm: false, sendInThread: false, autoDisappearSeconds: 0 };
+    logger.debug("Using default flag config (no custom config found)", { guildId: message.guildId });
+  }
 
   const code = flagEmojiToCode(reaction.emoji.name);
   const language = code ? FLAG_TO_LANG[code] : null;
-  if (!language) return;
+  if (!language) {
+    logger.debug("Flag reaction skipped: unsupported flag or non-flag emoji", { emoji: reaction.emoji.name });
+    return;
+  }
 
   const { checkCharacterLimit } = await import("./translationCore.js");
   if (!(await checkCharacterLimit(message.guildId))) return;
@@ -456,10 +484,19 @@ async function deleteById(client, pair) {
   if (!pair) return;
   const [channelId, messageId] = pair.includes(":") ? pair.split(":") : [null, pair];
   if (!channelId || !messageId) return;
+  
   const channel = await client.channels.fetch(channelId).catch(() => null);
   if (!channel) return;
+  
   const m = await channel.messages.fetch(messageId).catch(() => null);
-  if (m) await m.delete().catch(() => null);
+  if (m) {
+    await m.delete().catch((err) => {
+      logger.error("Failed to delete message in deleteById", { messageId, error: err.message });
+    });
+    logger.info("Deleted message via deleteById", { messageId });
+  } else {
+    logger.warn("Message not found in deleteById", { messageId });
+  }
 }
 
 async function getOrCreateWebhook(channel) {
@@ -482,11 +519,14 @@ async function getOrCreateWebhook(channel) {
 }
 
 export async function handleMessageDelete(message) {
-  if (!message.guildId) return;
-  const settings = await getGuildSettings(message.guildId);
+  const guildId = message.guildId || message.channel?.guildId;
+  if (!guildId) return;
+  const settings = await getGuildSettings(guildId);
   if (!settings?.features?.autoEraseEnabled) return;
+  
+  logger.info("Auto-Erase triggered", { messageId: message.id, mode: settings.autoEraseMode });
 
-  const mapByOriginal = await TranslationMessageMap.findOne({ guildId: message.guildId, originalMessageId: message.id });
+  const mapByOriginal = await TranslationMessageMap.findOne({ guildId, originalMessageId: message.id });
   if (mapByOriginal) {
     const deletions = mapByOriginal.translatedMessageIds.map((pair) => deleteById(message.client, pair));
     await Promise.all([...deletions, TranslationMessageMap.deleteOne({ _id: mapByOriginal._id })]);
@@ -495,7 +535,7 @@ export async function handleMessageDelete(message) {
 
   if (settings.autoEraseMode !== "ALL") return;
   const mapByTranslated = await TranslationMessageMap.findOne({
-    guildId: message.guildId,
+    guildId,
     translatedMessageIds: { $regex: new RegExp(`:${message.id}$`) }
   });
   if (!mapByTranslated) return;

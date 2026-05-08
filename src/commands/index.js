@@ -20,6 +20,7 @@ import {
   getGuildSettings,
   updateGuildSettings,
   runCommandTranslation,
+  saveTranslationMap,
   setTranslatedMessageIds,
   translateText,
 } from "../services/translationCore.js";
@@ -522,6 +523,12 @@ export const commands = [
             { name: "All (Any deletion triggers both)", value: "ALL" }
           ))
       )
+      .addSubcommand((s) =>
+        s
+          .setName("delay")
+          .setDescription("Set the auto-erase delay in seconds")
+          .addIntegerOption((o) => o.setName("seconds").setDescription("Delay in seconds (default 30)").setRequired(true).setMinValue(1).setMaxValue(3600))
+      )
       .addSubcommand((s) => s.setName("help").setDescription("Show help for Auto-Erase"))
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
     async execute(interaction) {
@@ -540,6 +547,10 @@ export const commands = [
         const mode = interaction.options.getString("mode", true);
         await updateGuildSettings(interaction.guildId, { "autoEraseMode": mode });
         await interaction.reply(`✅ Auto-Erase mode set to: **${mode}**`);
+      } else if (sub === "delay") {
+        const seconds = interaction.options.getInteger("seconds", true);
+        await updateGuildSettings(interaction.guildId, { "autoEraseDelay": seconds });
+        await interaction.reply(`✅ Auto-Erase delay set to: **${seconds}** seconds.`);
       }
     },
   },
@@ -1389,7 +1400,16 @@ async function handleContextMenuTranslate(interaction, targetLang) {
       components.push(row);
     }
 
-    await interaction.editReply({ embeds: [embed], components });
+    const sent = await interaction.editReply({ embeds: [embed], components });
+    
+    // Save to translation map for auto-erase support
+    await saveTranslationMap({
+      guildId: interaction.guildId,
+      featureType: "CONTEXT_MENU",
+      originalMessageId: message.id,
+      sourceChannelId: message.channelId,
+      translatedMessageIds: [`${interaction.channelId}:${sent.id}`],
+    });
   } catch (err) {
     await interaction.editReply(`Translation failed: ${err.message}`);
   }

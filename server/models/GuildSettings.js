@@ -42,6 +42,7 @@ const guildSettingsSchema = new mongoose.Schema(
       enum: ["TEXT", "EMBED", "WEBHOOK"],
       default: "TEXT",
     },
+    autoEraseDelay: { type: Number, default: 30 }, // seconds
   },
   { timestamps: true },
 );

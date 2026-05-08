@@ -954,6 +954,15 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
                 </select>
               </div>
               <div className="form-group">
+                <label>Auto-Erase Delay (seconds)</label>
+                <input
+                  type="number"
+                  value={overview?.settings?.autoEraseDelay || 30}
+                  onChange={(e) => updateGlobalSetting("autoEraseDelay", parseInt(e.target.value) || 30)}
+                  disabled={savingFeatureKey === "autoEraseDelay"}
+                />
+              </div>
+              <div className="form-group">
                 <label>Default Translation Style</label>
                 <select
                   value={overview?.settings?.defaultStyle || "TEXT"}

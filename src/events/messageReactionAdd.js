@@ -1,12 +1,15 @@
 import { Events } from "discord.js";
 import { logger } from "../utils/logger.js";
-import { handleFlagReaction } from "../services/messagePipelines.js";
+import { handleFlagReaction, handleAutoReact } from "../services/messagePipelines.js";
 
 export const messageReactionAddEvent = {
   name: Events.MessageReactionAdd,
   async execute(reaction, user) {
     try {
-      await handleFlagReaction(reaction, user);
+      await Promise.all([
+        handleFlagReaction(reaction, user),
+        handleAutoReact(reaction, user),
+      ]);
     } catch (err) {
       logger.error("messageReactionAdd pipeline failed", {
         guildId: reaction.message?.guildId,

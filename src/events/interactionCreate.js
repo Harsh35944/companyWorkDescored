@@ -39,6 +39,69 @@ export const interactionCreateEvent = {
     }
 
     if (interaction.isButton()) {
+      if (interaction.customId.startsWith("export_csv:")) {
+        const [, type, period, contextId] = interaction.customId.split(":");
+        await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+        const { GuildStatsDaily } = await import("../../server/models/GuildStatsDaily.js");
+        const { GuildStatsHourly } = await import("../../server/models/GuildStatsHourly.js");
+        const { AttachmentBuilder } = await import("discord.js");
+        const fs = await import("fs");
+        const path = await import("path");
+
+        let data = [];
+        let filename = `stats_${interaction.guildId}_${type}_${period}.csv`;
+        let csvContent = "Timestamp,Value\n";
+
+        if (period === "24h") {
+          const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          data = await GuildStatsHourly.find({
+            guildId: interaction.guildId,
+            contextId,
+            hourBucket: { $gte: since },
+          }).sort({ hourBucket: 1 });
+          
+          data.forEach(item => {
+            const val = type === "TRANSLATED_MESSAGES" ? item.translatedMessages : item.translatedCharacters;
+            csvContent += `${item.hourBucket.toISOString()},${val}\n`;
+          });
+        } else {
+          const days = period === "7d" ? 7 : 30;
+          const dayStrings = [];
+          for (let i = 0; i < days; i++) {
+            const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+            dayStrings.push(d.toISOString().split("T")[0]);
+          }
+          data = await GuildStatsDaily.find({
+            guildId: interaction.guildId,
+            contextId,
+            day: { $in: dayStrings },
+          }).sort({ day: 1 });
+
+          data.forEach(item => {
+            const val = type === "TRANSLATED_MESSAGES" ? item.translatedMessages : item.translatedCharacters;
+            csvContent += `${item.day},${val}\n`;
+          });
+        }
+
+        const tempDir = path.join(process.cwd(), "temp");
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+        const filePath = path.join(tempDir, filename);
+        fs.writeFileSync(filePath, csvContent);
+
+        const attachment = new AttachmentBuilder(filePath);
+        await interaction.editReply({
+          content: "📊 Your statistics export is ready!",
+          files: [attachment],
+        });
+
+        // Clean up
+        setTimeout(() => {
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        }, 60000);
+        return;
+      }
+
       if (interaction.customId.startsWith("tts:")) {
         const lang = interaction.customId.split(":")[1];
         let text = interaction.message.content;

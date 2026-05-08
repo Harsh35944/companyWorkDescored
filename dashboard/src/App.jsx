@@ -44,28 +44,7 @@ function maxPoint(points) {
   return m > 0 ? m : 1;
 }
 
-const LANGUAGES = [
-  { code: "gu", name: "Gujarati" },
-  { code: "hi", name: "Hindi" },
-  { code: "en", name: "English" },
-  { code: "mr", name: "Marathi" },
-  { code: "ta", name: "Tamil" },
-  { code: "te", name: "Telugu" },
-  { code: "kn", name: "Kannada" },
-  { code: "ml", name: "Malayalam" },
-  { code: "pa", name: "Punjabi" },
-  { code: "bn", name: "Bengali" },
-  { code: "es", name: "Spanish" },
-  { code: "fr", name: "French" },
-  { code: "de", name: "German" },
-  { code: "ja", name: "Japanese" },
-  { code: "ko", name: "Korean" },
-  { code: "zh", name: "Chinese" },
-  { code: "ar", name: "Arabic" },
-  { code: "ru", name: "Russian" },
-  { code: "pt", name: "Portuguese" },
-  { code: "it", name: "Italian" },
-];
+// LANGUAGES will be fetched from API
 
 function usePathGuildId() {
   const path = window.location.pathname;
@@ -73,13 +52,23 @@ function usePathGuildId() {
   return match ? match[1] : null;
 }
 
-function AutoTranslateSection({ guildId, items, channels, onReload, setError }) {
+function AutoTranslateSection({ guildId, items, channels, languages, onReload, setError }) {
   const [name, setName] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [sourceType, setSourceType] = useState("CHANNEL");
   const [targetId, setTargetId] = useState("");
-  const [targetLangs, setTargetLangs] = useState(["gu"]);
+  const [targetLangs, setTargetLangs] = useState(["en"]);
   const [style, setStyle] = useState("TEXT");
+  const [ignoreBots, setIgnoreBots] = useState(true);
+  const [ignoreLinks, setIgnoreLinks] = useState(false);
+  const [autoDisappearDelay, setAutoDisappearDelay] = useState(0);
+  const [deleteOriginal, setDeleteOriginal] = useState(false);
+  const [disableMention, setDisableMention] = useState(false);
+  const [ignoreEmojis, setIgnoreEmojis] = useState(false);
+  const [ignoreIfSourceIsNotInput, setIgnoreIfSourceIsNotInput] = useState(false);
+  const [ignoreIfSourceIsTarget, setIgnoreIfSourceIsTarget] = useState(false);
+  const [format, setFormat] = useState("");
+  const [langSearch, setLangSearch] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function add() {
@@ -89,10 +78,19 @@ function AutoTranslateSection({ guildId, items, channels, onReload, setError }) 
       await fetchJson(`/api/guilds/${guildId}/auto-translate-configs`, {
         method: "POST",
         body: JSON.stringify({
-          name,
+          name: name || `${sourceId}-to-${targetId}`,
           sourceType,
           sourceId,
           style,
+          ignoreBots,
+          ignoreLinks,
+          autoDisappearDelay,
+          deleteOriginal,
+          disableMention,
+          ignoreEmojis,
+          ignoreIfSourceIsNotInput,
+          ignoreIfSourceIsTarget,
+          format,
           targets: targetLangs.map(lang => ({ targetId, targetLanguage: lang })),
         }),
       });
@@ -101,6 +99,13 @@ function AutoTranslateSection({ guildId, items, channels, onReload, setError }) 
       setTargetId("");
       setTargetLangs(["gu"]);
       setStyle("TEXT");
+      setAutoDisappearDelay(0);
+      setDeleteOriginal(false);
+      setDisableMention(false);
+      setIgnoreEmojis(false);
+      setIgnoreIfSourceIsNotInput(false);
+      setIgnoreIfSourceIsTarget(false);
+      setFormat("");
       onReload();
     } catch (e) {
       setError(e.message);
@@ -170,9 +175,60 @@ function AutoTranslateSection({ guildId, items, channels, onReload, setError }) 
             </select>
           </div>
         </div>
+        
+        <div className="form-row" style={{ marginTop: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={ignoreBots} onChange={e => setIgnoreBots(e.target.checked)} />
+            <span>Ignore Bots (Recommended)</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={ignoreLinks} onChange={e => setIgnoreLinks(e.target.checked)} />
+            <span>Ignore Links</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={deleteOriginal} onChange={e => setDeleteOriginal(e.target.checked)} />
+            <span>Delete Original</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={disableMention} onChange={e => setDisableMention(e.target.checked)} />
+            <span>Disable Mentions</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={ignoreEmojis} onChange={e => setIgnoreEmojis(e.target.checked)} />
+            <span>Ignore Emojis</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={ignoreIfSourceIsNotInput} onChange={e => setIgnoreIfSourceIsNotInput(e.target.checked)} />
+            <span>Strict Detection</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={ignoreIfSourceIsTarget} onChange={e => setIgnoreIfSourceIsTarget(e.target.checked)} />
+            <span>Skip Same Lang</span>
+          </label>
+        </div>
+
+        <div className="form-row" style={{ marginTop: 12 }}>
+          <div className="form-group">
+            <label>Auto-Disappear (Seconds, 0 to disable)</label>
+            <input type="number" value={autoDisappearDelay} onChange={e => setAutoDisappearDelay(parseInt(e.target.value) || 0)} />
+          </div>
+          <div className="form-group">
+            <label>Custom Format (e.g. [Translation]: {"{text}"})</label>
+            <input value={format} onChange={e => setFormat(e.target.value)} placeholder="Leave blank for default" />
+          </div>
+        </div>
 
         <div className="form-group" style={{ marginTop: 12 }}>
-          <label>Target Languages (Select Multiple)</label>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <label>Target Languages (Select Multiple)</label>
+            <input 
+              type="text" 
+              placeholder="Search language..." 
+              value={langSearch} 
+              onChange={e => setLangSearch(e.target.value)}
+              style={{ fontSize: "12px", padding: "4px 8px", width: "150px" }}
+            />
+          </div>
           <div className="checkbox-grid" style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
@@ -184,7 +240,7 @@ function AutoTranslateSection({ guildId, items, channels, onReload, setError }) 
             background: 'rgba(255,255,255,0.05)',
             borderRadius: '4px'
           }}>
-            {LANGUAGES.map(l => (
+            {languages.filter(l => l.name.toLowerCase().includes(langSearch.toLowerCase())).map(l => (
               <label key={l.code} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
@@ -214,6 +270,11 @@ function AutoTranslateSection({ guildId, items, channels, onReload, setError }) 
                 <b>{item.name}</b>
                 <span className="muted small">
                   {item.sourceId === "all" ? "" : (isSChannel ? "#" : "")}{sName} → {langs} ({isTChannel ? "#" : ""}{tName}) • Style: {item.style}
+                  {item.ignoreBots ? " • Skip Bots" : ""}
+                  {item.ignoreLinks ? " • Skip Links" : ""}
+                  {item.deleteOriginal ? " • Del Original" : ""}
+                  {item.autoDisappearDelay > 0 ? ` • Dissapear (${item.autoDisappearDelay}s)` : ""}
+                  {item.ignoreEmojis ? " • Skip Emojis" : ""}
                 </span>
               </div>
               <button className="btn danger sm" onClick={() => remove(item._id)}>Delete</button>
@@ -225,7 +286,7 @@ function AutoTranslateSection({ guildId, items, channels, onReload, setError }) 
   );
 }
 
-function UserTranslateSection({ guildId, items, users, onReload, setError }) {
+function UserTranslateSection({ guildId, items, users, languages, onReload, setError }) {
   const [userId, setUserId] = useState("");
   const [lang, setLang] = useState("gu");
   const [busy, setBusy] = useState(false);
@@ -284,7 +345,7 @@ function UserTranslateSection({ guildId, items, users, onReload, setError }) {
           <label>Target Language</label>
           <div style={{ display: "flex", gap: 8 }}>
             <select value={lang} onChange={e => setLang(e.target.value)} style={{ flex: 1 }}>
-              {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+              {languages.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
             </select>
             <button className="btn primary" onClick={add} disabled={busy}>Add User Config</button>
           </div>
@@ -312,9 +373,13 @@ function UserTranslateSection({ guildId, items, users, onReload, setError }) {
   );
 }
 
-function RoleTranslateSection({ guildId, items, roles, onReload, setError }) {
+function RoleTranslateSection({ guildId, items, roles, languages, onReload, setError }) {
   const [roleId, setRoleId] = useState("");
   const [lang, setLang] = useState("gu");
+  const [style, setStyle] = useState("TEXT");
+  const [autoDisappearDelay, setAutoDisappearDelay] = useState(0);
+  const [deleteOriginal, setDeleteOriginal] = useState(false);
+  const [disableMention, setDisableMention] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const roleOptions = useMemo(() => {
@@ -329,9 +394,19 @@ function RoleTranslateSection({ guildId, items, roles, onReload, setError }) {
     try {
       await fetchJson(`/api/guilds/${guildId}/role-translate-configs`, {
         method: "POST",
-        body: JSON.stringify({ roleId, targetLanguage: lang }),
+        body: JSON.stringify({
+          roleId,
+          targetLanguage: lang,
+          style,
+          autoDisappearDelay,
+          deleteOriginal,
+          disableMention
+        }),
       });
       setRoleId("");
+      setAutoDisappearDelay(0);
+      setDeleteOriginal(false);
+      setDisableMention(false);
       onReload();
     } catch (e) {
       setError(e.message);
@@ -366,8 +441,30 @@ function RoleTranslateSection({ guildId, items, roles, onReload, setError }) {
           <div className="form-group">
             <label>Target Language</label>
             <select value={lang} onChange={e => setLang(e.target.value)}>
-              {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+              {languages.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
             </select>
+          </div>
+          <div className="form-group">
+            <label>Style</label>
+            <select value={style} onChange={e => setStyle(e.target.value)}>
+              <option value="TEXT">Plain Text</option>
+              <option value="WEBHOOK">Webhook</option>
+              <option value="EMBED">Embed</option>
+            </select>
+          </div>
+        </div>
+        <div className="form-row" style={{ marginTop: 12, marginBottom: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={deleteOriginal} onChange={e => setDeleteOriginal(e.target.checked)} />
+            <span>Delete Original</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={disableMention} onChange={e => setDisableMention(e.target.checked)} />
+            <span>Disable Mentions</span>
+          </label>
+          <div className="form-group">
+            <label>Disappear (s)</label>
+            <input type="number" style={{ width: "80px" }} value={autoDisappearDelay} onChange={e => setAutoDisappearDelay(parseInt(e.target.value) || 0)} />
           </div>
         </div>
         <button className="btn primary" onClick={add} disabled={busy}>Add Role Config</button>
@@ -377,7 +474,15 @@ function RoleTranslateSection({ guildId, items, roles, onReload, setError }) {
           const rName = roles.find(r => r.id === item.roleId)?.name || item.roleId;
           return (
             <div key={item._id} className="config-item">
-              <span>Role <b>{rName}</b> → <code>{item.targetLanguage}</code></span>
+              <div className="config-item-info">
+                <span>Role <b>{rName}</b> → <code>{item.targetLanguage}</code></span>
+                <span className="muted small">
+                  Style: {item.style} 
+                  {item.deleteOriginal ? " • Del Original" : ""}
+                  {item.autoDisappearDelay > 0 ? ` • Dissapear (${item.autoDisappearDelay}s)` : ""}
+                  {item.disableMention ? " • No Mention" : ""}
+                </span>
+              </div>
               <button className="btn danger sm" onClick={() => remove(item._id)}>Delete</button>
             </div>
           );
@@ -390,12 +495,12 @@ function RoleTranslateSection({ guildId, items, roles, onReload, setError }) {
 function FlagReactionSection({ guildId, config, onReload, setError }) {
   const [busy, setBusy] = useState(false);
 
-  async function toggle(val) {
+  async function updateConfig(updates) {
     setBusy(true);
     try {
       await fetchJson(`/api/guilds/${guildId}/flag-reaction-config`, {
         method: "PATCH",
-        body: JSON.stringify({ enabled: val }),
+        body: JSON.stringify(updates),
       });
       onReload();
     } catch (e) {
@@ -408,10 +513,37 @@ function FlagReactionSection({ guildId, config, onReload, setError }) {
   return (
     <div className="config-section">
       <h3>Flag Reaction Config</h3>
-      <label className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span>Enable translation by flag reaction</span>
-        <input type="checkbox" checked={config?.enabled} disabled={busy} onChange={e => toggle(e.target.checked)} />
-      </label>
+      <div className="card">
+        <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <span>Enable translation by flag reaction</span>
+          <input type="checkbox" checked={config?.enabled} disabled={busy} onChange={e => updateConfig({ enabled: e.target.checked })} />
+        </label>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label>Translation Style</label>
+            <select value={config?.style || "TEXT"} disabled={busy} onChange={e => updateConfig({ style: e.target.value })}>
+              <option value="TEXT">Plain Text</option>
+              <option value="EMBED">Embed Box</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Auto-Disappear (Seconds)</label>
+            <input type="number" value={config?.autoDisappearSeconds || 0} disabled={busy} onChange={e => updateConfig({ autoDisappearSeconds: parseInt(e.target.value) || 0 })} />
+          </div>
+        </div>
+
+        <div className="form-row" style={{ marginTop: 12 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={config?.sendInPm} disabled={busy} onChange={e => updateConfig({ sendInPm: e.target.checked })} />
+            <span>Send in DM</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={config?.sendInThread} disabled={busy} onChange={e => updateConfig({ sendInThread: e.target.checked })} />
+            <span>Send in Thread</span>
+          </label>
+        </div>
+      </div>
     </div>
   );
 }
@@ -602,12 +734,13 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
   const [userStats, setUserStats] = useState([]);
   const [channels, setChannels] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [languages, setLanguages] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [ov, an, fs, ac, rc, fc, tr, bl, uc, us, ch, rl] = await Promise.all([
+      const [ov, an, fs, ac, rc, fc, tr, bl, uc, us, ch, rl, lgs] = await Promise.all([
         fetchJson(`/api/guilds/${guildId}/overview`),
         fetchJson(
           `/api/guilds/${guildId}/analytics?period=${period}&metric=${metric}`,
@@ -622,6 +755,7 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
         fetchJson(`/api/guilds/${guildId}/user-stats`),
         fetchJson(`/api/guilds/${guildId}/channels`),
         fetchJson(`/api/guilds/${guildId}/roles`),
+        fetchJson(`/api/languages`),
       ]);
       setOverview(ov);
       setAnalytics(an);
@@ -644,6 +778,7 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
       setUserStats(us?.users || []);
       setChannels(ch?.channels || []);
       setRoles(rl?.roles || []);
+      setLanguages(lgs?.languages || []);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -779,9 +914,10 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
                 ["roleTranslateEnabled", "Role Translation"],
                 ["userTranslateEnabled", "User Translation"],
                 ["translationByFlagEnabled", "Translation by Flag"],
-                ["autoReactEnabled", "Auto-React (Flags)"],
+                ["autoReactEnabled", "Language Detection (Flags)"],
                 ["autoEraseEnabled", "Auto-Erase"],
                 ["ttsEnabled", "Text-to-Speech (Audio)"],
+                ["conversationModeEnabled", "Conversation Mode (Grouping)"],
               ].map(([key, label]) => (
                 <div 
                   key={key} 
@@ -829,15 +965,53 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
                   <option value="WEBHOOK">Webhook (User Imitation)</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label>Conversation Mode Delay (ms)</label>
+                <input
+                  type="number"
+                  value={overview?.settings?.conversationModeDelay || 2000}
+                  onChange={(e) => updateGlobalSetting("conversationModeDelay", parseInt(e.target.value) || 2000)}
+                  disabled={savingFeatureKey === "conversationModeDelay"}
+                />
+              </div>
+            </div>
+
+            <div className="form-row" style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--border)" }}>
+              <div className="form-group">
+                <label>Custom Bot Nickname</label>
+                <input 
+                  value={overview?.settings?.features?.customBotIdentity?.nickname || ""} 
+                  onChange={(e) => updateGlobalSetting("features.customBotIdentity.nickname", e.target.value)}
+                  placeholder="e.g. Translator Pro"
+                />
+              </div>
+              <div className="form-group">
+                <label>Custom Avatar URL</label>
+                <input 
+                  value={overview?.settings?.features?.customBotIdentity?.avatar || ""} 
+                  onChange={(e) => updateGlobalSetting("features.customBotIdentity.avatar", e.target.value)}
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Custom Bot Bio</label>
+              <textarea 
+                value={overview?.settings?.features?.customBotIdentity?.bio || ""} 
+                onChange={(e) => updateGlobalSetting("features.customBotIdentity.bio", e.target.value)}
+                placeholder="Brief description of the bot..."
+                style={{ background: "#101521", border: "1px solid #353f54", color: "#e6e9ef", padding: "0.5rem", borderRadius: "6px", width: "100%", height: "60px" }}
+              />
             </div>
           </section>
 
           <div className="config-grid">
-            <AutoTranslateSection guildId={guildId} items={autoConfigs} channels={channels} onReload={load} setError={setError} />
+            <AutoTranslateSection guildId={guildId} items={autoConfigs} channels={channels} languages={languages} onReload={load} setError={setError} />
             <RoleTranslateSection
               guildId={guildId}
               items={roleConfigs}
               roles={roles}
+              languages={languages}
               onReload={load}
               setError={setError}
             />
@@ -848,6 +1022,7 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
               guildId={guildId}
               items={userConfigs}
               users={userStats}
+              languages={languages}
               onReload={load}
               setError={setError}
             />

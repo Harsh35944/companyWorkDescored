@@ -44,6 +44,7 @@ import { FlagReactionConfig } from "../models/FlagReactionConfig.js";
 import { TextReplacement } from "../models/TextReplacement.js";
 import { TranslateBan } from "../models/TranslateBan.js";
 import { UserTranslateConfig } from "../models/UserTranslateConfig.js";
+import { SUPPORTED_LANGUAGES } from "../lib/languages.js";
 
 /**
  * Middleware to fetch the user document once per request.
@@ -81,6 +82,13 @@ export function createApiRouter(cfg) {
     asyncHandler(async (req, res) => {
       const guilds = await getManageableGuilds(req.user, cfg);
       res.json({ guilds });
+    }),
+  );
+  
+  r.get(
+    "/languages",
+    asyncHandler(async (req, res) => {
+      res.json({ languages: SUPPORTED_LANGUAGES });
     }),
   );
 
@@ -208,31 +216,6 @@ export function createApiRouter(cfg) {
     }),
   );
 
-  r.get(
-    "/guilds/:guildId/features",
-    validate({ params: guildIdParamSchema }),
-    asyncHandler(async (req, res) => {
-      const managed = await loadManagedGuildForUser(req.user, req.params.guildId, cfg);
-      if (!managed) return res.status(403).json({ error: "Cannot access this guild" });
-      const settings = await GuildSettings.findOne({ guildId: req.params.guildId }).lean();
-      res.json({ settings: settings ?? null });
-    }),
-  );
-
-  r.patch(
-    "/guilds/:guildId/features",
-    validate({ params: guildIdParamSchema, body: guildFeaturesPatchSchema }),
-    asyncHandler(async (req, res) => {
-      const managed = await loadManagedGuildForUser(req.user, req.params.guildId, cfg);
-      if (!managed) return res.status(403).json({ error: "Cannot access this guild" });
-      const settings = await GuildSettings.findOneAndUpdate(
-        { guildId: req.params.guildId },
-        { $set: req.body },
-        { upsert: true, new: true },
-      );
-      res.json({ settings });
-    }),
-  );
 
   r.get(
     "/guilds/:guildId/auto-translate-configs",

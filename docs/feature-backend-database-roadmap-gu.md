@@ -66,14 +66,12 @@ Backend ને 4 layers માં તોડો:
 
 ---
 
-## 3.2 Language Detection
+## 3.2 Language Detection [COMPLETED]
 
-- `/detect` command
-- message content detect કરીને language code + confidence return
-- optional auto-detect in auto-translation pipeline
-
-### service
-- `languageDetector.detect(text)`
+- `/detect` command (Enhanced with language names)
+- Context Menu "Detect Language" support
+- Robust Indian language detection (Telugu, Tamil, Hindi, etc.)
+- Auto-detect flags feature implemented
 
 ---
 

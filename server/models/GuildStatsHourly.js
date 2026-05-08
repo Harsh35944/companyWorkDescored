@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const guildStatsHourlySchema = new mongoose.Schema(
   {
     guildId: { type: String, required: true, index: true },
+    contextId: { type: String, default: "GLOBAL", index: true },
     hourBucket: { type: Date, required: true },
     translatedCharacters: { type: Number, default: 0 },
     translatedMessages: { type: Number, default: 0 },
@@ -10,7 +11,7 @@ const guildStatsHourlySchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-guildStatsHourlySchema.index({ guildId: 1, hourBucket: 1 }, { unique: true });
+guildStatsHourlySchema.index({ guildId: 1, hourBucket: 1, contextId: 1 }, { unique: true });
 
 export const GuildStatsHourly =
   mongoose.models.GuildStatsHourly ||

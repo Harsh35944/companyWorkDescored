@@ -32,9 +32,28 @@ function hourBucketDate(d) {
 export async function detectLanguage(text) {
   if (!text?.trim()) return { language: "unknown", confidence: 0 };
   
-  // Fast regex checks for specific scripts
-  if (/[઀-૿]/.test(text)) return { language: "gu", confidence: 0.95 };
-  if (/[\u0900-\u097F]/.test(text)) return { language: "hi", confidence: 0.95 };
+  const cleanText = text.toLowerCase().trim();
+  
+  // 1. Aggressive English Check (Common words + Latin Script)
+  const enWords = /\b(hello|hi|how|are|you|what|do|in|for|living|is|this|that|and|with|the|good|morning|night|thanks|test)\b/i;
+  if (enWords.test(cleanText) && /^[\x00-\x7F\u00C0-\u00FF\u0100-\u017F.,!?\s']+$/.test(cleanText)) {
+    return { language: "en", confidence: 1.0 };
+  }
+
+  // 2. Fast regex checks for specific scripts (Unicode ranges)
+  if (/[઀-૿]/.test(text)) return { language: "gu", confidence: 0.95 }; // Gujarati
+  if (/[\u0900-\u097F]/.test(text)) return { language: "hi", confidence: 0.95 }; // Hindi/Sanskrit/Marathi
+  if (/[\u0C00-\u0C7F]/.test(text)) return { language: "te", confidence: 0.95 }; // Telugu
+  if (/[\u0B80-\u0BFF]/.test(text)) return { language: "ta", confidence: 0.95 }; // Tamil
+  if (/[\u0C80-\u0CFF]/.test(text)) return { language: "kn", confidence: 0.95 }; // Kannada
+  if (/[\u0D00-\u0D7F]/.test(text)) return { language: "ml", confidence: 0.95 }; // Malayalam
+  if (/[\u0980-\u09FF]/.test(text)) return { language: "bn", confidence: 0.95 }; // Bengali
+  if (/[\u0A00-\u0A7F]/.test(text)) return { language: "pa", confidence: 0.95 }; // Punjabi
+  
+  // 3. Latin script fallback (Default to English)
+  if (/^[a-z0-9\s.,!?']+$/i.test(cleanText)) {
+    return { language: "en", confidence: 0.5 };
+  }
   
   try {
     const res = await translate(text, { to: "en" });
@@ -43,9 +62,11 @@ export async function detectLanguage(text) {
       confidence: 1,
     };
   } catch {
-    // Basic fallback logic
+    // Basic fallback logic for other common scripts
     if (/[ぁ-んァ-ン]/.test(text)) return { language: "ja", confidence: 0.9 };
     if (/[а-яА-Я]/.test(text)) return { language: "ru", confidence: 0.9 };
+    if (/[\uac00-\ud7af]/.test(text)) return { language: "ko", confidence: 0.9 }; // Korean
+    if (/[\u4e00-\u9fff]/.test(text)) return { language: "zh", confidence: 0.9 }; // Chinese
     return { language: "unknown", confidence: 0 };
   }
 }
@@ -112,34 +133,70 @@ export async function isUserBannedForTranslate(guildId, member) {
 
   if (!ban) return false;
   if (ban.userIds.includes(member.id)) return true;
-  const roleIds = member.roles?.cache ? [...member.roles.cache.keys()] : [];
+  
+  let roleIds = [];
+  if (member.roles?.cache) {
+    roleIds = [...member.roles.cache.keys()];
+  } else if (Array.isArray(member.roles)) {
+    roleIds = member.roles;
+  }
   return roleIds.some((r) => ban.roleIds.includes(r));
 }
 
-export async function incrementUsage(guildId, userId, translatedCharacters, translatedMessages) {
+export async function checkCharacterLimit(guildId) {
+  const settings = await getGuildSettings(guildId);
+  if (!settings) return true; // Default to allow if no settings
+
+  const now = new Date();
+  const day = toUtcDayString(now);
+  
+  const stats = await GuildStatsDaily.findOne({ guildId, day, contextId: "GLOBAL" }).lean();
+  const used = stats?.translatedCharacters || 0;
+  
+  return used < settings.maxCharactersPerDay;
+}
+
+export async function incrementUsage(guildId, userId, translatedCharacters, translatedMessages, channelId = null) {
   const now = new Date();
   const day = toUtcDayString(now);
   const hourBucket = hourBucketDate(now);
 
-  // We can't easily combine these as they are different collections, 
-  // but we use Promise.all to run them concurrently.
-  await Promise.all([
+  const updates = [
+    // Global Stats
     GuildStatsDaily.updateOne(
-      { guildId, day },
+      { guildId, day, contextId: "GLOBAL" },
       { $inc: { translatedCharacters, translatedMessages } },
       { upsert: true },
     ),
     GuildStatsHourly.updateOne(
-      { guildId, hourBucket },
+      { guildId, hourBucket, contextId: "GLOBAL" },
       { $inc: { translatedCharacters, translatedMessages } },
       { upsert: true },
     ),
+    // User Stats
     UserGuildStats.updateOne(
       { guildId, userId, day },
       { $inc: { translatedCharacters, translatedMessages } },
       { upsert: true },
     ),
-  ]).catch(err => {
+  ];
+
+  if (channelId) {
+    updates.push(
+      GuildStatsDaily.updateOne(
+        { guildId, day, contextId: channelId },
+        { $inc: { translatedCharacters, translatedMessages } },
+        { upsert: true },
+      ),
+      GuildStatsHourly.updateOne(
+        { guildId, hourBucket, contextId: channelId },
+        { $inc: { translatedCharacters, translatedMessages } },
+        { upsert: true },
+      )
+    );
+  }
+
+  await Promise.all(updates).catch(err => {
     logger.error("Failed to increment usage stats", { error: err.message, guildId, userId });
   });
 }
@@ -272,4 +329,14 @@ export async function runCommandTranslation({
     translatedMessageIds: [],
   });
   return result;
+}
+
+export async function updateGuildSettings(guildId, updates) {
+  const settings = await GuildSettings.findOneAndUpdate(
+    { guildId },
+    { $set: updates },
+    { new: true, upsert: true }
+  );
+  configCache.del(`guildSettings:${guildId}`);
+  return settings;
 }

@@ -50,6 +50,7 @@ export const guildFeaturesPatchSchema = z
     maxCharactersPerDay: nonNegInt.optional(),
     autoEraseMode: z.enum(["ONLY_FROM_ORIGINAL", "ONLY_FROM_TRANSLATED", "ALL"]).optional(),
     defaultStyle: style.optional(),
+    conversationModeDelay: nonNegInt.optional(),
     features: z
       .object({
         translationByFlagEnabled: z.boolean().optional(),
@@ -59,11 +60,18 @@ export const guildFeaturesPatchSchema = z
         autoEraseEnabled: z.boolean().optional(),
         autoReactEnabled: z.boolean().optional(),
         ttsEnabled: z.boolean().optional(),
+        conversationModeEnabled: z.boolean().optional(),
+        customBotIdentity: z.object({
+          nickname: z.string().optional(),
+          avatar: z.string().optional(),
+          banner: z.string().optional(),
+          bio: z.string().optional(),
+        }).partial().optional(),
       })
       .partial()
       .optional(),
   })
-  .strict();
+  .passthrough(); // Use passthrough to allow dot-notation keys like "features.customBotIdentity.nickname"
 
 export const autoTranslateConfigCreateSchema = z
   .object({
@@ -72,7 +80,16 @@ export const autoTranslateConfigCreateSchema = z
     sourceId: snowflake,
     sourceLanguage: z.string().trim().min(2).max(12).optional(),
     style: style.default("TEXT"),
-    enabled: z.boolean().default(true),
+    ignoreBots: z.boolean().optional().default(true),
+    ignoreLinks: z.boolean().optional().default(false),
+    enabled: z.boolean().optional().default(true),
+    autoDisappearDelay: nonNegInt.optional().default(0),
+    deleteOriginal: z.boolean().optional().default(false),
+    disableMention: z.boolean().optional().default(false),
+    ignoreEmojis: z.boolean().optional().default(false),
+    ignoreIfSourceIsNotInput: z.boolean().optional().default(false),
+    ignoreIfSourceIsTarget: z.boolean().optional().default(false),
+    format: z.string().trim().max(500).optional(),
     targets: z
       .array(
         z.object({
@@ -95,6 +112,12 @@ export const roleTranslateConfigCreateSchema = z
     targetLanguage: z.string().trim().min(2).max(12),
     style: style.default("TEXT"),
     enabled: z.boolean().default(true),
+    autoDisappearDelay: nonNegInt.optional().default(0),
+    deleteOriginal: z.boolean().optional().default(false),
+    disableMention: z.boolean().optional().default(false),
+    ignoreEmojis: z.boolean().optional().default(false),
+    ignoreIfSourceIsNotInput: z.boolean().optional().default(false),
+    ignoreIfSourceIsTarget: z.boolean().optional().default(false),
   })
   .strict();
 

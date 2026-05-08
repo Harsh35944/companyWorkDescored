@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const guildStatsDailySchema = new mongoose.Schema(
   {
     guildId: { type: String, required: true, index: true },
+    contextId: { type: String, default: "GLOBAL", index: true }, // channelId or categoryId
     day: { type: String, required: true },
     translatedCharacters: { type: Number, default: 0 },
     translatedMessages: { type: Number, default: 0 },
@@ -10,7 +11,7 @@ const guildStatsDailySchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-guildStatsDailySchema.index({ guildId: 1, day: 1 }, { unique: true });
+guildStatsDailySchema.index({ guildId: 1, day: 1, contextId: 1 }, { unique: true });
 
 export const GuildStatsDaily =
   mongoose.models.GuildStatsDaily ||

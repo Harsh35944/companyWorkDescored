@@ -23,12 +23,20 @@ const guildSettingsSchema = new mongoose.Schema(
       autoEraseEnabled: { type: Boolean, default: false },
       autoReactEnabled: { type: Boolean, default: false },
       ttsEnabled: { type: Boolean, default: false },
+      conversationModeEnabled: { type: Boolean, default: false },
+      customBotIdentity: {
+        nickname: { type: String },
+        avatar: { type: String },
+        banner: { type: String },
+        bio: { type: String },
+      },
     },
     autoEraseMode: {
       type: String,
       enum: ["ONLY_FROM_ORIGINAL", "ONLY_FROM_TRANSLATED", "ALL"],
       default: "ONLY_FROM_ORIGINAL",
     },
+    conversationModeDelay: { type: Number, default: 2000 }, // ms
     defaultStyle: {
       type: String,
       enum: ["TEXT", "EMBED", "WEBHOOK"],

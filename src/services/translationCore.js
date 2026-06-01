@@ -13,8 +13,8 @@ import { translate } from "google-translate-api-x";
 import NodeCache from "node-cache";
 import { logger } from "../utils/logger.js";
 
-// Cache for settings and configs (TTL 60 seconds)
-const configCache = new NodeCache({ stdTTL: 60, checkperiod: 120 });
+// Cache for settings and configs (TTL 2 seconds to reflect frontend changes instantly)
+const configCache = new NodeCache({ stdTTL: 2, checkperiod: 10 });
 
 function toUtcDayString(d) {
   const y = d.getUTCFullYear();

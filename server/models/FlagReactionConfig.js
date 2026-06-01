@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { guildEventsPlugin } from "./eventsPlugin.js";
 
 const flagReactionConfigSchema = new mongoose.Schema(
   {
@@ -11,6 +12,8 @@ const flagReactionConfigSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+flagReactionConfigSchema.plugin(guildEventsPlugin);
 
 export const FlagReactionConfig =
   mongoose.models.FlagReactionConfig ||

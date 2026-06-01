@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { guildEventsPlugin } from "./eventsPlugin.js";
 
 const targetSchema = new mongoose.Schema(
   {
@@ -34,6 +35,8 @@ const autoTranslateConfigSchema = new mongoose.Schema(
 );
 
 autoTranslateConfigSchema.index({ guildId: 1, name: 1 }, { unique: true });
+
+autoTranslateConfigSchema.plugin(guildEventsPlugin);
 
 export const AutoTranslateConfig =
   mongoose.models.AutoTranslateConfig ||

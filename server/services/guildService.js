@@ -250,24 +250,32 @@ export async function getGuildChannels(cfg, user, guildId) {
   const managed = await loadManagedGuildForUser(user, guildId, cfg);
   if (!managed) return null;
 
-  const channels = await fetchGuildChannels(cfg.botToken, guildId);
-  return channels
-    .filter((c) => [0, 2, 4, 5, 13, 15].includes(c.type)) // Text, Voice, Category, News, etc.
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      type: c.type,
-    }));
+  try {
+    const channels = await fetchGuildChannels(cfg.botToken, guildId);
+    return channels
+      .filter((c) => [0, 2, 4, 5, 13, 15].includes(c.type)) // Text, Voice, Category, News, etc.
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        type: c.type,
+      }));
+  } catch (err) {
+    return [];
+  }
 }
 
 export async function getGuildRoles(cfg, user, guildId) {
   const managed = await loadManagedGuildForUser(user, guildId, cfg);
   if (!managed) return null;
 
-  const roles = await fetchGuildRoles(cfg.botToken, guildId);
-  return roles.map((r) => ({
-    id: r.id,
-    name: r.name,
-    color: r.color,
-  }));
+  try {
+    const roles = await fetchGuildRoles(cfg.botToken, guildId);
+    return roles.map((r) => ({
+      id: r.id,
+      name: r.name,
+      color: r.color,
+    }));
+  } catch (err) {
+    return [];
+  }
 }

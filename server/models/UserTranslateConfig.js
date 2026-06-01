@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { guildEventsPlugin } from "./eventsPlugin.js";
 
 const userTranslateConfigSchema = new mongoose.Schema(
   {
@@ -12,6 +13,8 @@ const userTranslateConfigSchema = new mongoose.Schema(
 );
 
 userTranslateConfigSchema.index({ guildId: 1, userId: 1 }, { unique: true });
+
+userTranslateConfigSchema.plugin(guildEventsPlugin);
 
 export const UserTranslateConfig =
   mongoose.models.UserTranslateConfig ||

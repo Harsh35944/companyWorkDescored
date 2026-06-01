@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { guildEventsPlugin } from "./eventsPlugin.js";
 
 const translateBanSchema = new mongoose.Schema(
   {
@@ -8,6 +9,8 @@ const translateBanSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+translateBanSchema.plugin(guildEventsPlugin);
 
 export const TranslateBan =
   mongoose.models.TranslateBan || mongoose.model("TranslateBan", translateBanSchema);

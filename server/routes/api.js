@@ -45,6 +45,7 @@ import { TextReplacement } from "../models/TextReplacement.js";
 import { TranslateBan } from "../models/TranslateBan.js";
 import { UserTranslateConfig } from "../models/UserTranslateConfig.js";
 import { SUPPORTED_LANGUAGES } from "../lib/languages.js";
+import { guildEvents } from "../lib/events.js";
 
 /**
  * Middleware to fetch the user document once per request.
@@ -111,6 +112,33 @@ export function createApiRouter(cfg) {
       const settings = await ensureGuildSettings(req.params.guildId, req.user.discordId);
       logger.info("GET /features returned settings from DB", { guildId: req.params.guildId, features: settings.features });
       res.json({ settings });
+    }),
+  );
+
+  r.get(
+    "/guilds/:guildId/events",
+    validate({ params: guildIdParamSchema }),
+    asyncHandler(async (req, res) => {
+      const { guildId } = req.params;
+      const managed = await loadManagedGuildForUser(req.user, guildId, cfg);
+      if (!managed) return res.status(403).json({ error: "Cannot access this guild" });
+      
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+      
+      const onUpdate = (updatedGuildId) => {
+        if (updatedGuildId === guildId) {
+          res.write(`data: {"type": "update"}\n\n`);
+        }
+      };
+      
+      guildEvents.on("update", onUpdate);
+      
+      req.on("close", () => {
+        guildEvents.off("update", onUpdate);
+      });
     }),
   );
 

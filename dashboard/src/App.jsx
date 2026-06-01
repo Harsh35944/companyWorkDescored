@@ -824,7 +824,19 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
 
   useEffect(() => {
     load();
-  }, [load]);
+    const es = new EventSource(`/api/guilds/${guildId}/events`);
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type === "update") {
+          load();
+        }
+      } catch (err) {
+        console.error("SSE parse error", err);
+      }
+    };
+    return () => es.close();
+  }, [load, guildId]);
 
   const av = avatarUrl(me);
   const points = analytics?.points || [];

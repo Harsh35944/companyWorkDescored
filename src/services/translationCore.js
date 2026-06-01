@@ -12,6 +12,7 @@ import { UserGuildStats } from "../../server/models/UserGuildStats.js";
 import { translate } from "google-translate-api-x";
 import NodeCache from "node-cache";
 import { logger } from "../utils/logger.js";
+import { guildEvents } from "../../server/lib/events.js";
 
 // Cache for settings and configs (TTL 2 seconds to reflect frontend changes instantly)
 const configCache = new NodeCache({ stdTTL: 2, checkperiod: 10 });
@@ -338,5 +339,7 @@ export async function updateGuildSettings(guildId, updates) {
     { new: true, upsert: true }
   );
   configCache.del(`settings:${guildId}`);
+  guildEvents.emit("update", guildId);
   return settings;
 }
+

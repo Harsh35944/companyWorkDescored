@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { guildEventsPlugin } from "./eventsPlugin.js";
 
 const textReplacementSchema = new mongoose.Schema(
   {
@@ -10,6 +11,8 @@ const textReplacementSchema = new mongoose.Schema(
 );
 
 textReplacementSchema.index({ guildId: 1, input: 1 }, { unique: true });
+
+textReplacementSchema.plugin(guildEventsPlugin);
 
 export const TextReplacement =
   mongoose.models.TextReplacement ||

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { guildEventsPlugin } from "./eventsPlugin.js";
 
 const guildSettingsSchema = new mongoose.Schema(
   {
@@ -46,6 +47,8 @@ const guildSettingsSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+guildSettingsSchema.plugin(guildEventsPlugin);
 
 export const GuildSettings =
   mongoose.models.GuildSettings ||

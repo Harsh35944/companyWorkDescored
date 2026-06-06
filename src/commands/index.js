@@ -119,7 +119,9 @@ export const commands = [
   {
     data: new ContextMenuCommandBuilder()
       .setName("Translate to English")
-      .setType(ApplicationCommandType.Message),
+      .setType(ApplicationCommandType.Message)
+      .setIntegrationTypes([0, 1])
+      .setContexts([0, 1, 2]),
     async execute(interaction) {
       await handleContextMenuTranslate(interaction, "en");
     },
@@ -127,7 +129,9 @@ export const commands = [
   {
     data: new ContextMenuCommandBuilder()
       .setName("Translate to Gujarati")
-      .setType(ApplicationCommandType.Message),
+      .setType(ApplicationCommandType.Message)
+      .setIntegrationTypes([0, 1])
+      .setContexts([0, 1, 2]),
     async execute(interaction) {
       await handleContextMenuTranslate(interaction, "gu");
     },
@@ -135,7 +139,9 @@ export const commands = [
   {
     data: new ContextMenuCommandBuilder()
       .setName("Translate to My Language")
-      .setType(ApplicationCommandType.Message),
+      .setType(ApplicationCommandType.Message)
+      .setIntegrationTypes([0, 1])
+      .setContexts([0, 1, 2]),
     async execute(interaction) {
       const UserTranslateConfig = (await import("../../server/models/UserTranslateConfig.js")).UserTranslateConfig;
       const cfg = await UserTranslateConfig.findOne({ guildId: interaction.guildId, userId: interaction.user.id });

@@ -31,6 +31,7 @@ const required = [
  * @property {string | null} tokenEncryptionKey
  * @property {number} jsonBodyLimitMb
  * @property {number} defaultMaxCharactersPerDay
+ * @property {number} defaultMaxUserCharactersPerDay
  * @property {string} defaultPlan
  * @property {number} sessionMaxAgeMs
  * @property {number} rateLimitMax
@@ -62,6 +63,7 @@ export function loadApiConfig() {
     tokenEncryptionKey: process.env.TOKEN_ENCRYPTION_KEY?.trim() || null,
     jsonBodyLimitMb: Number(process.env.API_JSON_LIMIT_MB || 1),
     defaultMaxCharactersPerDay: Number(process.env.DEFAULT_MAX_CHARS_PER_DAY || 10000),
+    defaultMaxUserCharactersPerDay: Number(process.env.DEFAULT_MAX_USER_CHARS_PER_DAY || 2000),
     defaultPlan: process.env.DEFAULT_PLAN || "free",
     sessionMaxAgeMs: Number(process.env.SESSION_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000),
     rateLimitMax: Number(process.env.API_RATE_LIMIT_MAX || 120),

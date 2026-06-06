@@ -39,7 +39,9 @@ export const commands = [
   {
     data: new SlashCommandBuilder()
       .setName("ping")
-      .setDescription("Replies with latency."),
+      .setDescription("Replies with latency.")
+      .setIntegrationTypes([0, 1])   // 0 = Guild Install, 1 = User Install
+      .setContexts([0, 1, 2]),       // 0 = Guild, 1 = Bot DM, 2 = Group DM
     async execute(interaction) {
       const sent = await interaction.reply({
         content: "Pinging…",
@@ -57,21 +59,15 @@ export const commands = [
       .setDescription("Detect language for given text")
       .addStringOption((o) =>
         o.setName("text").setDescription("Text to detect").setRequired(true),
-      ),
+      )
+      .setIntegrationTypes([0, 1])
+      .setContexts([0, 1, 2]),
     async execute(interaction) {
-      if (!interaction.guildId) {
-        await interaction.reply({
-          content: "This command works in servers only.",
-          flags: [MessageFlags.Ephemeral],
-        });
-        return;
-      }
       const text = interaction.options.getString("text", true);
       const detected = await detectLanguage(text);
       const langName = LANGUAGE_NAMES[detected.language] || detected.language;
       await interaction.reply({
         content: `Detected Language: **${langName}** (Code: \`${detected.language}\`, Confidence: ${Math.round(detected.confidence * 100)}%)`,
-        flags: [MessageFlags.Ephemeral],
       });
     },
   },
@@ -87,55 +83,31 @@ export const commands = [
           .setName("target_language")
           .setDescription("Target language code (en, hi, gu...)")
           .setRequired(true),
-      ),
+      )
+      .setIntegrationTypes([0, 1])
+      .setContexts([0, 1, 2]),
     async execute(interaction) {
-      if (!interaction.guildId || !interaction.channelId) {
-        await interaction.reply({
-          content: "This command works in servers only.",
-          flags: [MessageFlags.Ephemeral],
-        });
-        return;
-      }
-
       await interaction.deferReply();
 
       const text = interaction.options.getString("text", true);
       const targetLanguage = interaction.options.getString("target_language", true);
+      // In DM / User Install context, guildId is null — use a fallback ID
+      const guildId = interaction.guildId ?? `dm_${interaction.user.id}`;
+      const channelId = interaction.channelId ?? interaction.user.id;
 
       try {
         const result = await runCommandTranslation({
-          guildId: interaction.guildId,
+          guildId,
           userId: interaction.user.id,
           originalMessageId: interaction.id,
-          sourceChannelId: interaction.channelId,
+          sourceChannelId: channelId,
           featureType: "COMMAND",
           text,
           targetLanguage,
         });
 
-        const components = [];
-        const settings = await getGuildSettings(interaction.guildId);
-        if (settings?.features?.ttsEnabled) {
-          const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-              .setCustomId(`tts:${targetLanguage}`)
-              .setLabel("Listen")
-              .setEmoji("🔊")
-              .setStyle(ButtonStyle.Secondary),
-          );
-          components.push(row);
-        }
-
-        const sent = await interaction.editReply({
+        await interaction.editReply({
           content: result.translatedText,
-          components,
-        });
-
-        await setTranslatedMessageIds({
-          guildId: interaction.guildId,
-          featureType: "COMMAND",
-          originalMessageId: interaction.id,
-          translatedMessageIds: [sent.id],
         });
       } catch (err) {
         await interaction.editReply({
@@ -1350,7 +1322,7 @@ export const commands = [
 ];
 
 async function handleContextMenuDetect(interaction) {
-  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+  await interaction.deferReply();
   const message = interaction.targetMessage;
   const content = message.content;
 
@@ -1368,7 +1340,7 @@ async function handleContextMenuDetect(interaction) {
 }
 
 async function handleContextMenuTranslate(interaction, targetLang) {
-  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+  await interaction.deferReply();
   const message = interaction.targetMessage;
   const content = message.content;
 

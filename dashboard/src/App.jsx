@@ -1108,10 +1108,12 @@ function OverviewPage({ me, onLogout, guildId, setError }) {
 
 export default function App() {
   const [me, setMe] = useState(null);
+  const [userUsage, setUserUsage] = useState(null);
   const [guilds, setGuilds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busyGuildId, setBusyGuildId] = useState(null);
+  const [userInstallBusy, setUserInstallBusy] = useState(false);
   const [pathGuildId, setPathGuildId] = useState(() => usePathGuildId());
 
   const loadSession = useCallback(async () => {
@@ -1120,11 +1122,16 @@ export default function App() {
     try {
       const profile = await fetchJson("/api/me");
       setMe(profile);
-      const g = await fetchJson("/api/me/guilds");
+      const [g, usage] = await Promise.all([
+        fetchJson("/api/me/guilds"),
+        fetchJson("/api/me/usage").catch(() => null),
+      ]);
       setGuilds(g.guilds || []);
+      setUserUsage(usage);
     } catch {
       setMe(null);
       setGuilds([]);
+      setUserUsage(null);
     } finally {
       setLoading(false);
     }
@@ -1172,6 +1179,19 @@ export default function App() {
       setError(e.message);
     } finally {
       setBusyGuildId(null);
+    }
+  }
+
+  async function openUserInstall() {
+    setUserInstallBusy(true);
+    setError(null);
+    try {
+      const { url } = await fetchJson("/api/auth/user-install-url");
+      window.open(url, "_blank", "width=500,height=700");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setUserInstallBusy(false);
     }
   }
 
@@ -1243,12 +1263,54 @@ export default function App() {
 
       {error ? <p className="warn">{error}</p> : null}
 
+      {userUsage && (
+        <section className="card" style={{ marginBottom: "2rem" }}>
+          <h3>Current usage</h3>
+          <p className="muted small">Your personal translation usage and lifetime totals.</p>
+          <div className="grid overview-two" style={{ marginTop: "1rem" }}>
+            <article className="card" style={{ background: "rgba(255, 255, 255, 0.03)" }}>
+              <p className="muted small" style={{ marginBottom: "0.5rem" }}>
+                <b>{userUsage.usedCharacters.toLocaleString()} / {userUsage.maxCharacters.toLocaleString()} characters used</b>
+              </p>
+              <div className="progress-track">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${Math.min(100, Math.round((userUsage.usedCharacters / userUsage.maxCharacters) * 100))}%` }} 
+                />
+              </div>
+            </article>
+            <article className="card summary-box" style={{ background: "rgba(255, 255, 255, 0.03)" }}>
+              <div><b>{userUsage.usedCharacters.toLocaleString()}</b><span>Translated Characters</span></div>
+              <div><b>{userUsage.translatedMessages.toLocaleString()}</b><span>Translated Messages</span></div>
+            </article>
+          </div>
+        </section>
+      )}
+
       <section className="guilds">
         <h3>Your servers</h3>
         <p className="muted small footnote">
           Only servers where you are owner or have Manage Server / Administrator are
           listed.
         </p>
+
+        <div className="user-install-banner card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 16, padding: "12px 16px", flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <b>Add to My Apps</b>
+            <p className="muted small" style={{ margin: "4px 0 0" }}>Use the bot everywhere in Discord — no server needed!</p>
+          </div>
+          <button
+            id="add-to-my-apps-btn"
+            type="button"
+            className="btn primary"
+            style={{ flexShrink: 0 }}
+            disabled={userInstallBusy}
+            onClick={openUserInstall}
+          >
+            {userInstallBusy ? "Opening…" : "Add to My Apps"}
+          </button>
+        </div>
+
         <div className="grid">
           {guilds.map((g) => (
             <article key={g.id} className="card guild-card">

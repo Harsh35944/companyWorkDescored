@@ -9,6 +9,7 @@ import { GuildStatsDaily } from "../../server/models/GuildStatsDaily.js";
 import { GuildStatsHourly } from "../../server/models/GuildStatsHourly.js";
 import { TranslationMessageMap } from "../../server/models/TranslationMessageMap.js";
 import { UserGuildStats } from "../../server/models/UserGuildStats.js";
+import { UserStatsDaily } from "../../server/models/UserStatsDaily.js";
 import { translate } from "google-translate-api-x";
 import NodeCache from "node-cache";
 import { logger } from "../utils/logger.js";
@@ -157,6 +158,18 @@ export async function checkCharacterLimit(guildId) {
   return used < settings.maxCharactersPerDay;
 }
 
+export async function checkUserCharacterLimit(userId) {
+  const now = new Date();
+  const day = toUtcDayString(now);
+  
+  const stats = await UserStatsDaily.findOne({ userId, day }).lean();
+  const used = stats?.translatedCharacters || 0;
+  
+  // 2000 is the default max personal characters per day
+  const max = Number(process.env.DEFAULT_MAX_USER_CHARS_PER_DAY || 2000);
+  return used < max;
+}
+
 export async function incrementUsage(guildId, userId, translatedCharacters, translatedMessages, channelId = null) {
   const now = new Date();
   const day = toUtcDayString(now);
@@ -174,7 +187,13 @@ export async function incrementUsage(guildId, userId, translatedCharacters, tran
       { $inc: { translatedCharacters, translatedMessages } },
       { upsert: true },
     ),
-    // User Stats
+    // User Stats (Global)
+    UserStatsDaily.updateOne(
+      { userId, day },
+      { $inc: { translatedCharacters, translatedMessages } },
+      { upsert: true },
+    ),
+    // User Stats (Guild)
     UserGuildStats.updateOne(
       { guildId, userId, day },
       { $inc: { translatedCharacters, translatedMessages } },

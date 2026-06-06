@@ -34,7 +34,7 @@ import {
   writeGuildStats,
   ensureGuildSettings,
 } from "../services/guildService.js";
-import { createBotInviteUrl } from "../services/authService.js";
+import { createBotInviteUrl, createUserInstallUrl } from "../services/authService.js";
 import { AppError } from "../lib/errors.js";
 import { loadManagedGuildForUser } from "../services/guildService.js";
 import { GuildSettings } from "../models/GuildSettings.js";
@@ -46,6 +46,14 @@ import { TranslateBan } from "../models/TranslateBan.js";
 import { UserTranslateConfig } from "../models/UserTranslateConfig.js";
 import { SUPPORTED_LANGUAGES } from "../lib/languages.js";
 import { guildEvents } from "../lib/events.js";
+import { UserStatsDaily } from "../models/UserStatsDaily.js";
+
+function toUtcDayString(d) {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 /**
  * Middleware to fetch the user document once per request.
@@ -74,6 +82,19 @@ export function createApiRouter(cfg) {
         username: me.username,
         discriminator: me.discriminator ?? "0",
         avatar: me.avatar ?? null,
+      });
+    }),
+  );
+
+  r.get(
+    "/me/usage",
+    asyncHandler(async (req, res) => {
+      const day = toUtcDayString(new Date());
+      const stats = await UserStatsDaily.findOne({ userId: req.user.discordId, day }).lean();
+      res.json({
+        usedCharacters: stats?.translatedCharacters || 0,
+        maxCharacters: cfg.defaultMaxUserCharactersPerDay,
+        translatedMessages: stats?.translatedMessages || 0,
       });
     }),
   );
@@ -240,6 +261,15 @@ export function createApiRouter(cfg) {
       if (!url) {
         throw new AppError("Cannot manage this guild", { statusCode: 403 });
       }
+      res.json({ url });
+    }),
+  );
+
+  // "Add to My Apps" (User Install) – integration_type=1, no guild required
+  r.get(
+    "/auth/user-install-url",
+    asyncHandler(async (_req, res) => {
+      const url = createUserInstallUrl(cfg);
       res.json({ url });
     }),
   );

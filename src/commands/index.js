@@ -118,27 +118,7 @@ export const commands = [
   },
   {
     data: new ContextMenuCommandBuilder()
-      .setName("Translate to English")
-      .setType(ApplicationCommandType.Message)
-      .setIntegrationTypes([0, 1])
-      .setContexts([0, 1, 2]),
-    async execute(interaction) {
-      await handleContextMenuTranslate(interaction, "en");
-    },
-  },
-  {
-    data: new ContextMenuCommandBuilder()
-      .setName("Translate to Gujarati")
-      .setType(ApplicationCommandType.Message)
-      .setIntegrationTypes([0, 1])
-      .setContexts([0, 1, 2]),
-    async execute(interaction) {
-      await handleContextMenuTranslate(interaction, "gu");
-    },
-  },
-  {
-    data: new ContextMenuCommandBuilder()
-      .setName("Translate to My Language")
+      .setName("Translate Text")
       .setType(ApplicationCommandType.Message)
       .setIntegrationTypes([0, 1])
       .setContexts([0, 1, 2]),
